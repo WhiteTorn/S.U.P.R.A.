@@ -18,7 +18,7 @@ class SupraSearchEngine:
             raise ValueError("GOOGLE_API_KEY not found. Please set it in your .env file.")
         
         self.client = genai.Client(api_key=self.api_key)
-        self.model = self.model = "gemini-2.0-flash"
+        self.model = self.model = "gemini-1.5-flash"
         self.restaurant_data = []
 
     def load_data(self, data_path: str = "data/rests.json"):
@@ -47,7 +47,7 @@ class SupraSearchEngine:
             mime_type='image/jpeg' # Let the API handle detection
         )
         
-    async def search(self, query: str = "", image_path: str = "", limit: int = 10) -> Dict[str, Any]:
+    async def search(self, query: str = "", image_path: str = "", preferences: str = "", limit: int = 10) -> Dict[str, Any]:
         """
         Performs a multimodal search using either text, an image, or both.
         """
@@ -71,6 +71,11 @@ class SupraSearchEngine:
                 Return up to {limit} matches.
                 """
 
+            if preferences:
+                preferences_prompt = f"""
+                User Preferences and allergies: "{preferences}"
+                """
+
             full_prompt = f"""
             {prompt}
             
@@ -82,6 +87,8 @@ class SupraSearchEngine:
             2. Find the most relevant dishes with detailed restaurant information
             3. Return maximum {limit} results ranked by relevance
             4. Focus on Georgian cuisine authenticity when relevant
+            5. Always focus on user preferences and allergies, they are top priority.
+            User Preferences are: {preferences_prompt}
 
             also you should act like the waiters in the restaurant,
             professionally and politely pick the best dishes that user might also like
