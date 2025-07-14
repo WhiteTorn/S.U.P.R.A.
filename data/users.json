@@ -1,0 +1,63 @@
+[
+    {
+      "name": "Nino",
+      "location": {
+        "lat": 41.7000,
+        "lng": 44.7900
+      },
+      "preferences": [
+        "Italian",
+        "Pizza",
+        "Cozy"
+      ]
+    },
+    {
+      "name": "Giorgi",
+      "location": {
+        "lat": 41.7050,
+        "lng": 44.7800
+      },
+      "preferences": [
+        "Georgian",
+        "Wine",
+        "Traditional"
+      ]
+    },
+    {
+      "name": "Tamar",
+      "location": {
+        "lat": 41.7025,
+        "lng": 44.7850
+      },
+      "preferences": [
+        "Vegan",
+        "Healthy",
+        "Organic"
+      ]
+    },
+    {
+      "name": "Levan",
+      "location": {
+        "lat": 41.6990,
+        "lng": 44.7880
+      },
+      "preferences": [
+        "Fast Food",
+        "Burgers",
+        "Casual"
+      ]
+    },
+    {
+      "name": "Mariam",
+      "location": {
+        "lat": 41.7030,
+        "lng": 44.7830
+      },
+      "preferences": [
+        "Seafood",
+        "Fine Dining",
+        "Romantic"
+      ]
+    }
+]
+  
