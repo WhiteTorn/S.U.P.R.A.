@@ -83,6 +83,14 @@ class SupraSearchEngine:
             3. Return maximum {limit} results ranked by relevance
             4. Focus on Georgian cuisine authenticity when relevant
 
+            also you should act like the waiters in the restaurant,
+            professionally and politely pick the best dishes that user might also like
+            and return them with the addition to the main query.
+            focus on preferences and allergies user specified in the query.
+
+            you are not allowed to return the same dish more than once.
+            and you are not allowed to make mistakes in the data when returning them. you have IDEAL memory and ideal capabilities to return information as it was.
+
             OUTPUT FORMAT (JSON ONLY):
             {{
                 "results": [
