@@ -85,16 +85,12 @@ class SupraSearchEngine:
 
             OUTPUT FORMAT (JSON ONLY):
             {{
-                "search_type": "{'image' if image_path else 'text'}",
-                "query": "{query}",
                 "results": [
                     {{
                         "restaurant_id": "...",
                         "restaurant_name": "...",
                         "dish_name": "...",
                         "dish_price": 0.00,
-                        "match_score": 0.9,
-                        "match_reason": "..."
                     }}
                 ]
             }}
