@@ -1,11 +1,15 @@
 import google.generativeai as genai
 import json
 from PIL import Image
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
 
 # --- Configuration ---
 # Configure the Gemini API key. Replace "YOUR_API_KEY" with your actual key.
 # It's recommended to use environment variables for security.
-GOOGLE_API_KEY = "YOUR_API_KEY" 
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 genai.configure(api_key=GOOGLE_API_KEY)
 
 def get_taste_agent_response(file_path):
