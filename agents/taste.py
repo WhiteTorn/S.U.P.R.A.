@@ -27,7 +27,7 @@ def extract_menu_dishes(file_path: str, temperature: float = 0.1):
     # 1. Initialize the model with specific generation config
     generation_config = genai.types.GenerationConfig(temperature=temperature)
     model = genai.GenerativeModel(
-        'gemini-1.5-flash',
+        'gemini-2.0-flash',
         generation_config=generation_config
     )
     
