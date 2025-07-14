@@ -18,7 +18,7 @@ class SupraSearchEngine:
             raise ValueError("GOOGLE_API_KEY not found. Please set it in your .env file.")
         
         self.client = genai.Client(api_key=self.api_key)
-        self.model = self.model = "gemini-1.5-flash"
+        self.model = self.model = "gemini-2.0-flash"
         self.restaurant_data = []
 
     def load_data(self, data_path: str = "data/rests.json"):
