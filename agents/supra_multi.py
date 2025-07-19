@@ -61,14 +61,50 @@ class ConversationState:
         if dish_key not in existing_keys:
             self.liked_dishes.append(dish_dict)
     
-    def auto_preserve_good_dishes(self):
-        """Auto-preserve dishes that weren't explicitly disliked."""
-        if self.turn_count > 0 and len(self.current_results) > 0:
-            # If user didn't explicitly exclude dishes, consider keeping some good ones
-            for result in self.current_results[:3]:  # Keep top 3 from previous response
-                dish_key = f"{result['restaurant_name']}_{result['dish_name']}"
-                if dish_key not in self.excluded_dishes:
-                    self.like_dish(result)
+    def preserve_dishes_by_keyword(self, feedback: str):
+        """Preserve dishes based on keywords in feedback (e.g., 'preserve khachapuris')."""
+        feedback_lower = feedback.lower()
+        
+        # Map common English terms to Georgian dish types
+        dish_mappings = {
+            'khachapuri': ['ხაჭაპური'],
+            'khachapuris': ['ხაჭაპური'], 
+            'khinkali': ['ხინკალი'],
+            'lobio': ['ლობიო'],
+            'ostri': ['ოსტრი'],
+            'pkhali': ['ფხალი'],
+            'badrijani': ['ბადრიჯანი'],
+            'cheese': ['ყველი'],
+            'soup': ['სუპი'],
+            'salad': ['სალათი'],
+            'meat': ['ხორცი', 'საქონლის', 'ღორის'],
+            'beef': ['საქონლის'],
+            'pork': ['ღორის'],
+            'vegetarian': ['ვეგეტარიანული']
+        }
+        
+        preserve_keywords = ['preserve', 'keep', 'save', 'maintain']
+        
+        # Check if user wants to preserve specific dish types
+        for preserve_word in preserve_keywords:
+            if preserve_word in feedback_lower:
+                for english_term, georgian_terms in dish_mappings.items():
+                    if english_term in feedback_lower:
+                        # Find matching dishes in current results
+                        for result in self.current_results:
+                            dish_name = result['dish_name']
+                            # Check if any Georgian term appears in the dish name
+                            for georgian_term in georgian_terms:
+                                if georgian_term in dish_name:
+                                    self.like_dish(result)
+                                    print(f"🔒 Preserved: {dish_name} from {result['restaurant_name']}")
+                                    break
+        
+        # Also check for "all" or "everything"
+        if any(word in feedback_lower for word in ['preserve all', 'keep all', 'save all', 'preserve everything']):
+            for result in self.current_results:
+                self.like_dish(result)
+                print(f"🔒 Preserved: {result['dish_name']} from {result['restaurant_name']}")
             
     def get_conversation_context(self) -> str:
         """Get formatted conversation context for the AI."""
@@ -78,22 +114,22 @@ class ConversationState:
         
         if self.liked_dishes:
             liked_dishes_info = [f"{d['dish_name']} from {d['restaurant_name']}" for d in self.liked_dishes]
-            context += f"LIKED DISHES (must keep): {', '.join(liked_dishes_info)}\n"
+            context += f"LIKED/PRESERVED DISHES (must include first): {', '.join(liked_dishes_info)}\n"
         
         if self.excluded_dishes:
-            context += f"EXCLUDED DISHES (user didn't like): {', '.join(self.excluded_dishes)}\n"
+            context += f"EXCLUDED DISHES (never suggest): {', '.join(self.excluded_dishes)}\n"
             
         if self.all_suggested_dishes:
-            context += f"ALREADY SUGGESTED (avoid duplicates): {', '.join(self.all_suggested_dishes)}\n"
+            context += f"ALREADY SUGGESTED (avoid duplicates): {', '.join(self.all_suggested_dishes[:10])}\n"  # Limit to avoid long context
             
         if self.conversation_history:
-            context += "PREVIOUS CONVERSATION:\n"
-            for msg in self.conversation_history[-4:]:  # Last 4 messages for context
+            context += "RECENT CONVERSATION:\n"
+            for msg in self.conversation_history[-3:]:  # Last 3 messages for context
                 if msg["role"] == "user":
                     context += f"User: {msg['content']}\n"
                 else:
-                    dishes = [f"{r['dish_name']} from {r['restaurant_name']}" for r in msg['content']]
-                    context += f"Assistant: Suggested {len(dishes)} dishes\n"
+                    dishes_count = len(msg['content'])
+                    context += f"Assistant: Suggested {dishes_count} dishes\n"
                     
         return context
 
@@ -192,10 +228,6 @@ class SupraMultiSearchEngine:
                 self.conversation.add_user_message(user_input, "initial_query")
                 result = await self._search_with_context(user_input, image_path, limit)
             else:
-                # For follow-up messages, auto-preserve some dishes if no explicit feedback
-                if not self._has_explicit_feedback(user_input):
-                    self.conversation.auto_preserve_good_dishes()
-                
                 # Process feedback and continue conversation
                 self._process_feedback(user_input)
                 result = await self._search_with_context(user_input, image_path, limit)
@@ -226,7 +258,7 @@ class SupraMultiSearchEngine:
         """Check if user provided explicit like/dislike feedback."""
         feedback_indicators = [
             "like", "don't like", "dislike", "hate", "love", "remove", "replace", 
-            "keep", "good", "bad", "terrible", "excellent", "not interested"
+            "keep", "preserve", "save", "good", "bad", "terrible", "excellent", "not interested"
         ]
         
         user_input_lower = user_input.lower()
@@ -234,7 +266,7 @@ class SupraMultiSearchEngine:
 
     async def _search_with_context(self, query: str = "", image_path: str = "", limit: int = 10) -> Dict[str, Any]:
         """
-        Internal search method with context awareness and duplicate prevention.
+        Internal search method with context awareness and proper preservation.
         """
         contents = []
         
@@ -242,27 +274,38 @@ class SupraMultiSearchEngine:
             restaurant_data_json = json.dumps(self.restaurant_data, ensure_ascii=False)
             conversation_context = self.conversation.get_conversation_context()
             
-            # Calculate how many new dishes we need
-            liked_count = len(self.conversation.liked_dishes)
-            new_dishes_needed = max(0, limit - liked_count)
-            
             # Handle image if provided
             if image_path:
                 image_part = self._process_image(image_path)
                 contents.append(image_part)
                 
+            # Calculate dishes needed
+            preserved_count = len(self.conversation.liked_dishes)
+            new_dishes_needed = max(0, limit - preserved_count)
+            
             # Create contextual prompt
             if self.conversation.turn_count == 0:
                 prompt_type = "INITIAL SEARCH"
-                search_instruction = f"Find {limit} unique dishes matching the user's request: '{query}'"
+                search_instruction = f"Find {limit} unique dishes matching: '{query}'"
             else:
                 prompt_type = "REFINEMENT SEARCH"
-                search_instruction = f"Find {new_dishes_needed} NEW unique dishes based on feedback: '{query}'"
+                if preserved_count > 0:
+                    search_instruction = f"PRESERVE all {preserved_count} liked dishes at the TOP with status='preserved', then add {new_dishes_needed} NEW dishes with status='new'"
+                else:
+                    search_instruction = f"Find {new_dishes_needed} NEW dishes based on: '{query}'"
 
-            liked_dishes_json = json.dumps(self.conversation.liked_dishes, ensure_ascii=False) if self.conversation.liked_dishes else "[]"
+            # Format preserved dishes for clear instructions
+            liked_dishes_list = []
+            for dish in self.conversation.liked_dishes:
+                liked_dishes_list.append({
+                    "dish_name": dish["dish_name"],
+                    "restaurant_name": dish["restaurant_name"],
+                    "dish_price": dish["dish_price"],
+                    "status": "preserved"
+                })
 
             full_prompt = f"""
-            You are a professional Georgian cuisine expert and waiter. {prompt_type}
+            You are a professional Georgian cuisine expert. {prompt_type}
             
             {conversation_context}
             
@@ -271,33 +314,28 @@ class SupraMultiSearchEngine:
             RESTAURANT DATA:
             {restaurant_data_json}
 
-            CRITICAL REQUIREMENTS:
+            CRITICAL INSTRUCTIONS:
             1. {search_instruction}
-            2. NEVER suggest dishes from ALREADY SUGGESTED list (no duplicates across all conversations)
-            3. NEVER suggest dishes from EXCLUDED DISHES list
-            4. ALWAYS include all dishes from LIKED DISHES list in final results
-            5. Each dish must be 100% unique - no same dish from same restaurant twice
-            6. Focus on user preferences and allergies as TOP priority
-            7. Keep reason text under 100 characters to prevent truncation
-            8. Return accurate data from the database only
+            2. FIRST: Include ALL preserved dishes exactly as listed below with status="preserved"
+            3. THEN: Add NEW unique dishes with status="new"
+            4. NEVER duplicate any dish (check restaurant_name + dish_name combination)
+            5. NEVER suggest dishes from EXCLUDED or ALREADY SUGGESTED lists
+            6. Total results must be exactly {limit} dishes
+            7. Keep responses brief to prevent truncation
 
-            DUPLICATE PREVENTION:
-            - Before suggesting any dish, check if it's in ALREADY SUGGESTED list
-            - If refinement search, preserve all LIKED DISHES and add only NEW ones
-            - Total results should be exactly {limit} dishes
-
-            LIKED DISHES TO PRESERVE: {liked_dishes_json}
+            PRESERVED DISHES (MUST include first with exact same data):
+            {json.dumps(liked_dishes_list, ensure_ascii=False)}
 
             OUTPUT FORMAT (JSON ONLY):
             {{
-                "conversation_response": "Brief friendly response acknowledging the request (max 150 chars)...",
+                "conversation_response": "Brief response (max 100 chars)",
                 "results": [
                     {{
-                        "restaurant_id": "...",
-                        "restaurant_name": "...",
-                        "dish_name": "...",
-                        "dish_price": 0.00,
-                        "reason": "Brief reason under 100 chars...",
+                        "restaurant_id": "exact_id_from_data",
+                        "restaurant_name": "exact_name_from_data", 
+                        "dish_name": "exact_name_from_data",
+                        "dish_price": exact_price_from_data,
+                        "reason": "Brief reason (max 80 chars)",
                         "status": "preserved" | "new"
                     }}
                 ]
@@ -311,26 +349,35 @@ class SupraMultiSearchEngine:
                 contents=contents,
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json",
-                    temperature=0.1,  # Lower temperature for more consistent results
-                    max_output_tokens=4000  # Prevent truncation
+                    temperature=0.05,  # Very low temperature for consistency
+                    max_output_tokens=3000
                 )
             )
             
             result = json.loads(response.text)
             
-            # Validate and clean duplicates as backup
-            cleaned_results = self._remove_duplicates(result.get("results", []))
-            result["results"] = cleaned_results
+            # Validate and enforce preservation order
+            results = result.get("results", [])
+            preserved_results = [r for r in results if r.get("status") == "preserved"]
+            new_results = [r for r in results if r.get("status") != "preserved"]
             
-            self.conversation.add_assistant_message(cleaned_results)
+            # Ensure preserved dishes come first
+            final_results = preserved_results + new_results[:limit-len(preserved_results)]
+            
+            # Remove any duplicates as final safety check
+            final_results = self._remove_duplicates(final_results)
+            
+            result["results"] = final_results
+            self.conversation.add_assistant_message(final_results)
             
             return {"status": "success", "data": result}
 
         except Exception as e:
+            print(f"Error in search: {e}")
             return {"status": "error", "message": str(e)}
 
     def _remove_duplicates(self, results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Remove duplicates as a backup safety measure."""
+        """Remove duplicates ensuring no same dish from same restaurant appears twice."""
         seen = set()
         cleaned = []
         
@@ -343,32 +390,47 @@ class SupraMultiSearchEngine:
         return cleaned
 
     def _process_feedback(self, feedback: str):
-        """Process user feedback and update conversation state."""
+        """Enhanced feedback processing with better preservation detection."""
         self.conversation.turn_count += 1
         self.conversation.add_user_message(feedback, "feedback")
         
         feedback_lower = feedback.lower()
         
-        # Process current results for likes and dislikes
+        # First check for preservation keywords
+        self.conversation.preserve_dishes_by_keyword(feedback)
+        
+        # Then check for specific dish feedback
         for result in self.conversation.current_results:
             dish_name_lower = result["dish_name"].lower()
             restaurant_name = result["restaurant_name"]
             
-            # Check for positive indicators
-            positive_indicators = ["like", "love", "good", "great", "perfect", "keep", "yes", "want this"]
-            negative_indicators = ["don't like", "not interested", "no thanks", "remove", "replace", "hate", "dislike", "no"]
+            # Positive indicators
+            positive_indicators = ["like this", "love this", "good", "great", "want this", "yes"]
+            negative_indicators = ["don't like", "not interested", "remove", "replace", "hate", "dislike", "no"]
             
-            # Check if user mentioned this dish positively
-            for indicator in positive_indicators:
-                if indicator in feedback_lower and dish_name_lower in feedback_lower:
-                    self.conversation.like_dish(result)
-                    break
+            # Check mentions of this specific dish (by position or partial name)
+            dish_mentioned = False
             
-            # Check if user mentioned this dish negatively
-            for indicator in negative_indicators:
-                if indicator in feedback_lower and dish_name_lower in feedback_lower:
-                    self.conversation.exclude_dish(result["dish_name"], restaurant_name)
-                    break
+            # Check if dish is mentioned by position (e.g., "I like #1" or "remove item 2")
+            for i, res in enumerate(self.conversation.current_results, 1):
+                if res == result:
+                    if f"#{i}" in feedback_lower or f"item {i}" in feedback_lower or f"number {i}" in feedback_lower:
+                        dish_mentioned = True
+                        break
+            
+            if dish_mentioned:
+                # Check if positive or negative
+                for indicator in positive_indicators:
+                    if indicator in feedback_lower:
+                        self.conversation.like_dish(result)
+                        print(f"👍 Liked: {result['dish_name']}")
+                        break
+                        
+                for indicator in negative_indicators:
+                    if indicator in feedback_lower:
+                        self.conversation.exclude_dish(result["dish_name"], restaurant_name)
+                        print(f"👎 Excluded: {result['dish_name']}")
+                        break
 
     def start_new_conversation(self, preferences: str = ""):
         """Start a fresh conversation with optional user preferences."""
