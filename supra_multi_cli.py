@@ -124,7 +124,7 @@ class SupraMultiCLI:
             else:
                 print(f"❓ Unexpected response: {response}")
 
-    async def run_single_query(self, query: str, preferences: str = "", user_name: str = ""):
+    async def run_single_query(self, query: str, preferences: str = "", user_name: str = "", image_path: str = ""):
         """Run a single query (for API-like usage)."""
         
         # Load data
@@ -147,9 +147,13 @@ class SupraMultiCLI:
         # Start conversation with preferences
         if preferences:
             self.engine.start_new_conversation(preferences)
+        
+        # TEST: Show image processing status
+        if image_path:
+            print(f"🖼️  Processing image: {image_path}")
             
-        # Send query
-        response = await self.engine.chat(query)
+        # Send query with image support
+        response = await self.engine.chat(query, image_path)
         
         # Print results
         if response["status"] == "success":
@@ -171,17 +175,21 @@ async def main():
                        help="User preferences and dietary restrictions")
     parser.add_argument('-u', '--user', type=str, default="",
                        help="Load preferences from users.json")
+    # TEST: Add image support (remove this line when done testing)
+    parser.add_argument('-i', '--image', type=str, default="",
+                       help="Path to image for visual food search")
     
     args = parser.parse_args()
     
     cli = SupraMultiCLI()
     
     if args.query:
-        # Single query mode
+        # Single query mode with image support
         await cli.run_single_query(
             query=args.query,
             preferences=args.preferences,
-            user_name=args.user
+            user_name=args.user,
+            image_path=args.image  # TEST: Pass image path (remove when done testing)
         )
     else:
         # Interactive chat mode

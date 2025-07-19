@@ -84,8 +84,12 @@ class SupraMultiSearchEngine:
 
     def _process_image(self, image_path: str) -> types.Part:
         """Helper to read and prepare an image file for the API."""
-        return types.Part.from_uri(
-            uri=image_path,
+        # Read local image file
+        with open(image_path, 'rb') as image_file:
+            image_data = image_file.read()
+        
+        return types.Part.from_bytes(
+            data=image_data,
             mime_type='image/jpeg'
         )
         
@@ -183,29 +187,45 @@ class SupraMultiSearchEngine:
             {restaurant_data_json}
 
             INSTRUCTIONS - Handle ALL operations naturally:
+            
+            {"🖼️ IMAGE ANALYSIS MODE:" if image_path else ""}
+            {"- First, analyze the food image to identify what dish/cuisine it shows" if image_path else ""}
+            {"- Then, search the restaurant database for ACTUAL similar dishes" if image_path else ""}
+            {"- Return matching dishes from the database, not just description" if image_path else ""}
+            {"- Focus on finding real dishes that match what you see in the image" if image_path else ""}
+            
             1. UNDERSTAND the user's intent:
                - Adding dishes? ("add", "also", "more", "suggest")
                - Removing/filtering? ("only", "just", "don't want", "remove", "except")
                - Replacing? ("instead", "different")
                - Asking for information? ("show", "what do I have")
+               - Image search? (when image provided, find similar dishes in database)
             
             2. WORK WITH CURRENT SELECTION:
                - If user wants to ADD: keep current dishes + add new ones
                - If user wants ONLY specific items: filter current selection to keep ONLY those items
                - If user says "I don't want X": remove X from current selection
                - If user has allergies: remove/avoid allergens
+               - If IMAGE PROVIDED: search database for dishes similar to what's shown
             
             3. RETURN FINAL COMPLETE SELECTION (not just new dishes):
                - Always return the FULL selection user should have
                - Maximum {limit} dishes total
                - No duplicates
                - Respect allergies and preferences
+               - For images: MUST include actual matching dishes from database
             
             4. BE SMART about context:
                - "only khinkali" = keep only khinkali dishes from current selection
                - "I have pork allergy" = remove all pork dishes
                - "add drinks" = add drinks to existing selection
                - "remove everything except beef khinkali" = keep only beef khinkali
+               - IMAGE + "What food is this?" = identify AND find similar dishes in database
+            
+            5. CRITICAL FOR IMAGES:
+               - Don't just describe the food - FIND MATCHING DISHES in the database
+               - Look for dishes with similar ingredients, cooking methods, or cuisine type
+               - Return actual available dishes, not descriptions
             
             OUTPUT FORMAT (JSON ONLY):
             {{
