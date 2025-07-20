@@ -201,17 +201,25 @@ class SupraMultiSearchEngine:
                - Asking for information? ("show", "what do I have")
                - Image search? (when image provided, find similar dishes in database)
             
-            2. WORK WITH CURRENT SELECTION:
-               - If user wants to ADD: keep current dishes + add new ones
-               - If user wants ONLY specific items: filter current selection to keep ONLY those items
-               - If user says "I don't want X": remove X from current selection
+            2. HANDLE USER SELECTION DECISIONS:
+                - If user says "ავიღებ X" or "X ავიღებ" (I'll take X) = choose ONLY X, remove other similar options
+               - If user wants to ADD: keep current dishes + add new ones = - ALWAYS keep dishes user has already chosen (unless they specifically ask to remove)
+               - If user asks for new category: show ALL options in that category + keep existing selection
+               - If user says "I don't want X": remove X from current selection - Only remove items when user explicitly says "remove X" or "I don't want X"
                - If user has allergies: remove/avoid allergens
                - If IMAGE PROVIDED: search database for dishes similar to what's shown
+               - If user chooses 1 item from multiple options (like "საქონლის ხინკალს" from 4 khinkali)
+                - Keep the chosen item + remove other similar items from same category
             
-            3. RETURN FINAL COMPLETE SELECTION (not just new dishes):
-               - Always return the FULL selection user should have
+            3. SHOW ALL AVAILABLE OPTIONS for what user requests - and after filtering RETURN FINAL COMPLETE SELECTION
+               - If user asks for khinkali, show ALL khinkali options available
+               - If user asks for drinks, show ALL drink options available  
+               - If user asks for meat dishes, show ALL meat dish options
+               - Don't make filtering decisions for the user - show options
+               - Only filter when user explicitly says "remove X" or "only keep Y"
                - Maximum {limit} dishes total
-               - No duplicates
+               - NEVER add duplicates - always check! if exact same dish already exists in selection
+                - If user selects existing dish, just keep that one, don't add again
                - Respect allergies and preferences
                - For images: MUST include actual matching dishes from database
             
@@ -221,22 +229,64 @@ class SupraMultiSearchEngine:
                - "add drinks" = add drinks to existing selection
                - "remove everything except beef khinkali" = keep only beef khinkali
                - IMAGE + "What food is this?" = identify AND find similar dishes in database
+               - if requested dish is not in the database and you can't find similar dishes, leave blank space for that dish
+
+            CRITICAL SELECTION RULES:
+                - "ხინკალი მინდა" = show ALL khinkali options (exploration phase)
+                - "საქონლის ხინკალს ავიღებ" = choose ONLY beef khinkali, REMOVE all other khinkali (selection phase)  
+                - "დავამატებ X" = choose X from shown options, remove other similar items
+                - "ავიღებ X" = same as above - selection, not addition
+
+                NEVER keep multiple items of same type after user makes a choice.
             
             5. CRITICAL FOR IMAGES:
                - Don't just describe the food - FIND MATCHING DISHES in the database
                - Look for dishes with similar ingredients, cooking methods, or cuisine type
                - Return actual available dishes, not descriptions
             
+            <example>
+            EXAMPLE CONVERSATION TO FOLLOW:
+                User: "აჭარული ხაჭაპური მინდა" (I want Adjarian khachapuri)
+                → Show ALL available აჭარული ხაჭაპური options from all restaurants
+
+                User: "სახლი 11-ს აჭარული ავიღებ" (I'll take Adjarian from Sakhli #11)
+                → Keep that specific khachapuri remove other khachapuri options
+
+                User: "სასმელიც" (also drinks)  
+                → Keep the khachapuri selection + show ALL available drink options from the same restaurant user chose
+
+                User: "რამე ხორციანსაც" (something with meat too)
+                → Keep khachapuri from same restaurant + keep drinks + show ALL meat dish options
+
+                User: "აღარ მინდა სასმელი" (I don't want drinks)
+                → Keep khachapuri + remove drinks + show ALL meat dish options
+
+                User: "ვსო შევუკვეთავ" (I'll order these)
+                → Keep khachapuri + keep meat dishes + show final selection
+
+                This way user sees all options and makes their own filtering decisions.   
+            </example>
+
+            <example 2>
+                User: "ხინკალი მინდა" (I want khinkali)
+                → Show ALL 5 khinkali options
+
+                User: "საქონლის ხინკალს ავიღებ" (I'll take beef khinkali)  
+                → Keep ONLY "ხინკალი (საქონლის, 1 ცალი)" - remove other 4 khinkali options
+                → Final selection: 1 dish (the chosen beef khinkali)
+
+                User: "სასმელიც დავამატებ" (I'll also add drinks)
+                → Keep beef khinkali + show ALL drink options
+            </example 2>
+
             OUTPUT FORMAT (JSON ONLY):
             {{
-                "conversation_response": "Natural response explaining what you did",
                 "results": [
                     {{
                         "restaurant_id": "...",
                         "restaurant_name": "...",
                         "dish_name": "...",
                         "dish_price": 0.00,
-                        "reason": "Brief explanation"
                     }}
                 ],
                 "operation_performed": "added" | "filtered" | "replaced" | "removed" | "no_change"
