@@ -238,6 +238,11 @@ class SupraMultiSearchEngine:
                 - "ავიღებ X" = same as above - selection, not addition
 
                 NEVER keep multiple items of same type after user makes a choice.
+
+            GEORGIAN LANGUAGE CONTEXT:
+                - "ხინკალი მინდა" = "I want khinkali" → Show options
+                - "ავიღებ ხინკალს" = "I'll take THE khinkali" → Use current selection
+                - When user says "ავიღებ X და Y" after discussing specific items → finalize those specific items, don't show all options again
             
             5. CRITICAL FOR IMAGES:
                - Don't just describe the food - FIND MATCHING DISHES in the database
